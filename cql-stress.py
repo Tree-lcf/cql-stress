@@ -13,8 +13,43 @@ import argparse
 import itertools
 import threading
 import signal
+from cassandra.cluster import Cluster
 
 log = logging.getLogger('cql-stress')
+
+# create one connection first
+
+class Connections(object):
+    """
+    Tracks a single connection to Cassandra.
+    """
+    session = None
+
+    def connect(self, nodes):
+        cluster = Cluster(nodes)
+        metadata = cluster.metadata
+	self.session = cluster.connect()
+        log.info('connect to cluster: ' + metadata.cluster_name) 
+        
+    def close(self):
+        self.session.cluster.shutdown()
+        log.info('Connection closed.')
+
+class Pool(object):
+    """
+    Manages multiple connections to one or more Cassandra clusters.
+    """
+    def __init__(self, keyspace, srcip=['']):
+        self.keyspace = keyspace
+        
+    def run(self, hosts, totalconns, addcount=30, addrate=1, constant=False):
+
+        client =  Connections()
+        log.info('hosts=%s', hosts)
+        client.connect(['10.236.134.27'])
+        time.sleep(60)
+        client.close       
+
 
 class FullHelpParser(argparse.ArgumentParser):
     def error(self, message):
@@ -51,8 +86,11 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s')
     log.setLevel(logging.INFO)
 
-    log.info('conns=%d keyspace=%s query=%s addrate=%s' , opts.nconns, opts.keyspace, opts.query, opts.addrate)
-#    p = Pool(opts.keyspace, opts.srcip or [''])
+    log.info('conns=%d keyspace=%s query=%s IP=%s' , opts.nconns, opts.keyspace, opts.query, opts.hosts)
+
+# create 1000 connections to cluster
+
+    p = Pool(opts.keyspace, opts.srcip or [''])
 #    p.set_query(opts.query, opts.rate)
-#    addcount, addrate = opts.addrate.split('/')
-#    p.run(opts.hosts, opts.nconns, int(addcount), int(addrate), opts.constant)
+    addcount, addrate = opts.addrate.split('/')
+    p.run(opts.hosts, opts.nconns, int(addcount), int(addrate), opts.constant)
