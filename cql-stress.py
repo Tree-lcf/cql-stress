@@ -41,22 +41,19 @@ class Connection(object):
 
 class myThread (threading.Thread):
     def __init__(self,object,host,query,rate,keyspace):
+	threading.Thread.__init__(self)
 	self.object = object
 	self.host = host
 	self.query = query
 	self.rate = rate
+	self.keyspace = keyspace
 	log.info('host= %s', host)
 	self.object.connect(self.host)
 	
     def run(self):
-	self.thread_number = threading.currentThread()
-	log.info('in thread number %d', self.thread_number)
- 
-"""
 	while True:
-	    self.object.run_query(query, rate, keyspace)
+	    self.object.run_query(self.query, self.rate, self.keyspace)
 	    time.sleep(1)
-"""
 
 class Pool(object):
     """
@@ -88,12 +85,18 @@ class Pool(object):
                 conn_threads.append(myThread(client,hosts,self.query_string,self.query_rate,self.keyspace))
                 time.sleep(1)
 
+	    for i in range(needed):
+	        conn_threads[i].start()
+
 	    log.info('done connectiong')
 	    break
 
 	while self.running:
 	    now = time.time()
 	    time.sleep(1)
+
+# need to add signal handling to recycle all threads
+
 	client.close
 
 class FullHelpParser(argparse.ArgumentParser):
