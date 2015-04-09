@@ -77,8 +77,6 @@ class Pool(object):
 	needed = totalconns
 	last_conn_time = 0
 	conn_threads = []
-	addrate = 600
-	addcount = 1000
 	log.info('create a client object')
 	client = Connection()
 	"""
@@ -86,19 +84,12 @@ class Pool(object):
 	until the total count is reached.
 	"""
 	while self.running:
-	    now = time.time()
-	    if now - last_conn_time >= addrate:
-		addcount = min(addcount, needed)
-		log.info('adding %d connections (left=%d)', addcount, needed)
-            	for i in range(needed):
-                    conn_threads.append(myThread(client,hosts,self.query_string,self.query_rate,self.keyspace))
-                    time.sleep(1)
+            for i in range(needed):
+                conn_threads.append(myThread(client,hosts,self.query_string,self.query_rate,self.keyspace))
+                time.sleep(1)
 
-		needed -= addcount
-		if needed <= 0:
-		    log.info('done connectiong')
-		    break
-		last_conn_time = now
+	    log.info('done connectiong')
+	    break
 
 	while self.running:
 	    now = time.time()
