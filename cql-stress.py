@@ -17,11 +17,9 @@ from cassandra.cluster import Cluster
 
 log = logging.getLogger('cql-stress')
 
-# create one connection first
-
-class Connections(object):
+class Connection(object):
     """
-    Tracks a single connection to Cassandra.
+    
     """
     session = None
 
@@ -29,11 +27,36 @@ class Connections(object):
         cluster = Cluster(nodes)
         metadata = cluster.metadata
 	self.session = cluster.connect()
-        log.info('connect to cluster: ' + metadata.cluster_name) 
-        
+        log.info('connect to cluster: ' + metadata.cluster_name)
+
+    def run_query(self, query, rate, keyspace):
+	self.query = query
+	self.keyspace = 'use ' + keyspace
+	self.session.execute(self.keyspace)
+	self.session.execute(self.query)
+
     def close(self):
         self.session.cluster.shutdown()
         log.info('Connection closed.')
+
+class myThread (threading.Thread):
+    def __init__(self,object,host,query,rate,keyspace):
+	self.object = object
+	self.host = host
+	self.query = query
+	self.rate = rate
+	log.info('host= %s', host)
+	self.object.connect(self.host)
+	
+    def run(self):
+	self.thread_number = threading.currentThread()
+	log.info('in thread number %d', self.thread_number)
+ 
+"""
+	while True:
+	    self.object.run_query(query, rate, keyspace)
+	    time.sleep(1)
+"""
 
 class Pool(object):
     """
@@ -41,22 +64,52 @@ class Pool(object):
     """
     def __init__(self, keyspace, srcip=['']):
         self.keyspace = keyspace
-        
-    def run(self, hosts, totalconns, addcount=30, addrate=1, constant=False):
+        self.connections = {}
+        self.ready = []
+        self.running = True
+        self.set_query(None, 0)
 
-        client =  Connections()
-        log.info('hosts=%s', hosts)
-        client.connect(['10.236.134.27'])
-        time.sleep(60)
-        client.close       
+    def set_query(self, query, rate):
+	self.query_string = query
+   	self.query_rate = rate
 
+    def run(self, hosts, totalconns):
+	needed = totalconns
+	last_conn_time = 0
+	conn_threads = []
+	addrate = 600
+	addcount = 1000
+	log.info('create a client object')
+	client = Connection()
+	"""
+	Adds in new connections to the host at the given rate,
+	until the total count is reached.
+	"""
+	while self.running:
+	    now = time.time()
+	    if now - last_conn_time >= addrate:
+		addcount = min(addcount, needed)
+		log.info('adding %d connections (left=%d)', addcount, needed)
+            	for i in range(needed):
+                    conn_threads.append(myThread(client,hosts,self.query_string,self.query_rate,self.keyspace))
+                    time.sleep(1)
+
+		needed -= addcount
+		if needed <= 0:
+		    log.info('done connectiong')
+		    break
+		last_conn_time = now
+
+	while self.running:
+	    now = time.time()
+	    time.sleep(1)
+	client.close
 
 class FullHelpParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)
-
 
 if __name__ == '__main__':
     parser = FullHelpParser(prog='cql3-stress', usage='%(prog)s [options] host...')
@@ -69,11 +122,6 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--nconns', dest='nconns', action='store', type=int,
                         default=100,
                         help='Number of connections to establish to each given Cassandra host')
-    parser.add_argument('-a', '--addrate', dest='addrate', action='store', type=str,
-                        default='20/2',
-                        help='Add new connections every interval (count / seconds)')
-    parser.add_argument('-c', '--constant', dest='constant', action='store_true',
-                        help='Keep a constant transaction rate even as connections are added')
     parser.add_argument('-r', '--rate', dest='rate', action='store', type=float,
                         default='0.1',
                         help='Number of queries per second per connection')
@@ -88,9 +136,6 @@ if __name__ == '__main__':
 
     log.info('conns=%d keyspace=%s query=%s IP=%s' , opts.nconns, opts.keyspace, opts.query, opts.hosts)
 
-# create 1000 connections to cluster
-
     p = Pool(opts.keyspace, opts.srcip or [''])
-#    p.set_query(opts.query, opts.rate)
-    addcount, addrate = opts.addrate.split('/')
-    p.run(opts.hosts, opts.nconns, int(addcount), int(addrate), opts.constant)
+    p.set_query(opts.query, opts.rate)
+    p.run(opts.hosts, opts.nconns)
