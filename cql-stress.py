@@ -3,14 +3,10 @@
 Connection stress test tool for Cassandra's binary protocol based on python driver
 """
 import sys
-import socket
-import struct
 import select
 import logging
 import time
-import random
 import argparse
-import itertools
 import threading
 import signal
 from cassandra.cluster import Cluster
@@ -19,7 +15,7 @@ log = logging.getLogger('cql-stress')
 
 class Connection(object):
     """
-    
+    Using datastax driver to connect and run queries 
     """
     session = None
 
@@ -47,7 +43,6 @@ class myThread (threading.Thread):
 	self.query = query
 	self.rate = rate
 	self.keyspace = keyspace
-	log.info('host= %s', host)
 	self.object.connect(self.host)
 	
     def run(self):
@@ -116,7 +111,7 @@ if __name__ == '__main__':
                         help='Query to issue')
     parser.add_argument('-n', '--nconns', dest='nconns', action='store', type=int,
                         default=100,
-                        help='Number of connections to establish to each given Cassandra host')
+                        help='Number of driver connection requests to each given Cassandra host, it will create 3 connections in the designated host and 2 in its neighbors')
     parser.add_argument('-r', '--rate', dest='rate', action='store', type=float,
                         default='0.1',
                         help='Number of queries per second per connection')
