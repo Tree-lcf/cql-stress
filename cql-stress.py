@@ -53,7 +53,7 @@ class myThread (threading.Thread):
     def run(self):
 	while True:
 	    self.object.run_query(self.query, self.rate, self.keyspace)
-	    time.sleep(1)
+	    time.sleep(1/self.rate)
 
 class Pool(object):
     """
@@ -86,6 +86,7 @@ class Pool(object):
                 time.sleep(1)
 
 	    for i in range(needed):
+		conn_threads[i].setDaemon(True)
 	        conn_threads[i].start()
 
 	    log.info('done connectiong')
