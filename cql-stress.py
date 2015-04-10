@@ -12,6 +12,7 @@ import signal
 from cassandra.cluster import Cluster
 
 log = logging.getLogger('cql-stress')
+running = True
 
 class Connection(object):
     """
@@ -46,7 +47,8 @@ class myThread (threading.Thread):
 	self.object.connect(self.host)
 	
     def run(self):
-	while True:
+	global running
+	while running:
 	    self.object.run_query(self.query, self.rate, self.keyspace)
 	    time.sleep(1/self.rate)
 
@@ -56,26 +58,27 @@ class Pool(object):
     """
     def __init__(self, keyspace, srcip=['']):
         self.keyspace = keyspace
-        self.connections = {}
-        self.ready = []
-        self.running = True
         self.set_query(None, 0)
 
     def set_query(self, query, rate):
 	self.query_string = query
    	self.query_rate = rate
 
+    def handler(signal, frame):
+	log.info('you want to stop')
+
     def run(self, hosts, totalconns):
 	needed = totalconns
 	last_conn_time = 0
 	conn_threads = []
+	global running
 	log.info('create a client object')
 	client = Connection()
 	"""
 	Adds in new connections to the host at the given rate,
 	until the total count is reached.
 	"""
-	while self.running:
+	while running:
             for i in range(needed):
                 conn_threads.append(myThread(client,hosts,self.query_string,self.query_rate,self.keyspace))
                 time.sleep(1)
@@ -84,16 +87,20 @@ class Pool(object):
 		conn_threads[i].setDaemon(True)
 	        conn_threads[i].start()
 
-	    log.info('done connectiong')
+	    log.info('done connecting')
 	    break
 
-	while self.running:
-	    now = time.time()
-	    time.sleep(1)
+	signal.signal(signal.SIGINT, self.handler)
+	signal.pause()
+#	log.info('received keyboardInterrupt')
+#	running = False
+#	log.info('waiting for threads to exit')
+#	time.sleep(2*1/opts.rate)
+#	client.close
+	# sys.exit()
 
 # need to add signal handling to recycle all threads
 
-	client.close
 
 class FullHelpParser(argparse.ArgumentParser):
     def error(self, message):
@@ -102,7 +109,7 @@ class FullHelpParser(argparse.ArgumentParser):
         sys.exit(2)
 
 if __name__ == '__main__':
-    parser = FullHelpParser(prog='cql3-stress', usage='%(prog)s [options] host...')
+    parser = FullHelpParser(prog='cql-stress', usage='%(prog)s [options] host...')
     parser.add_argument('-k', '--keyspace', dest='keyspace', action='store', type=str,
                         default='system',
                         help='Keyspace to connect to')
@@ -111,7 +118,7 @@ if __name__ == '__main__':
                         help='Query to issue')
     parser.add_argument('-n', '--nconns', dest='nconns', action='store', type=int,
                         default=100,
-                        help='Number of driver connection requests to each given Cassandra host, it will create 3 connections in the designated host and 2 in its neighbors')
+                        help='Number of driver connection requests to each given Cassandra host, it create 3 connections in the designated host and 2 in its neighbors')
     parser.add_argument('-r', '--rate', dest='rate', action='store', type=float,
                         default='0.1',
                         help='Number of queries per second per connection')
