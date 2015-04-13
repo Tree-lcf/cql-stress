@@ -16,10 +16,7 @@ running = True
 
 def stophandler(signum, frame):
     log.info('Terminate threads and exit')
-#    global running
-#    running = False
     
-
 class Connection(object):
     """
     Using datastax driver to connect and run queries 
@@ -46,20 +43,17 @@ class myThread (threading.Thread):
     def __init__(self,object,host,query,rate,keyspace):
 	threading.Thread.__init__(self)
 	self._stopevent = threading.Event()
-	self.sleepperiod = 1.0
+	self.rate = rate
+	self.sleepperiod = 1.0/self.rate
 	self.object = object
 	self.host = host
 	self.query = query
-	self.rate = rate
 	self.keyspace = keyspace
 	self.object.connect(self.host)
 	
     def run(self):
-#	global running
-#       while running:
 	while not self._stopevent.isSet():
 	    self.object.run_query(self.query, self.rate, self.keyspace)
-#	    time.sleep(1/self.rate)
 	    self._stopevent.wait(self.sleepperiod)
 	log.info('%s ends', self.name)
 	exit(0)
@@ -110,7 +104,7 @@ class Pool(object):
 	log.info('waiting for threads to exit')
 	for i in range(needed):
 	    conn_threads[i].join()
-	time.sleep(2*1/opts.rate)
+	time.sleep(1)
 	client.close
 
 class FullHelpParser(argparse.ArgumentParser):
