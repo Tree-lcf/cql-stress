@@ -14,6 +14,11 @@ from cassandra.cluster import Cluster
 log = logging.getLogger('cql-stress')
 running = True
 
+def stophandler(signum, frame):
+    log.info('Terminate threads and exit')
+    global running
+    running = False
+
 class Connection(object):
     """
     Using datastax driver to connect and run queries 
@@ -51,6 +56,8 @@ class myThread (threading.Thread):
 	while running:
 	    self.object.run_query(self.query, self.rate, self.keyspace)
 	    time.sleep(1/self.rate)
+	log.info('%s ends', self.name)
+	exit(0)
 
 class Pool(object):
     """
@@ -63,9 +70,6 @@ class Pool(object):
     def set_query(self, query, rate):
 	self.query_string = query
    	self.query_rate = rate
-
-    def handler(signal, frame):
-	log.info('you want to stop')
 
     def run(self, hosts, totalconns):
 	needed = totalconns
@@ -90,17 +94,12 @@ class Pool(object):
 	    log.info('done connecting')
 	    break
 
-	signal.signal(signal.SIGINT, self.handler)
+	signal.signal(signal.SIGINT, stophandler)
 	signal.pause()
-#	log.info('received keyboardInterrupt')
-#	running = False
-#	log.info('waiting for threads to exit')
-#	time.sleep(2*1/opts.rate)
-#	client.close
-	# sys.exit()
-
-# need to add signal handling to recycle all threads
-
+	log.info('received keyboardInterrupt')
+	log.info('waiting for threads to exit')
+	time.sleep(2*1/opts.rate)
+	client.close
 
 class FullHelpParser(argparse.ArgumentParser):
     def error(self, message):
