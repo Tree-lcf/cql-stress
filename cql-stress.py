@@ -16,8 +16,9 @@ running = True
 
 def stophandler(signum, frame):
     log.info('Terminate threads and exit')
-    global running
-    running = False
+#    global running
+#    running = False
+    
 
 class Connection(object):
     """
@@ -44,6 +45,8 @@ class Connection(object):
 class myThread (threading.Thread):
     def __init__(self,object,host,query,rate,keyspace):
 	threading.Thread.__init__(self)
+	self._stopevent = threading.Event()
+	self.sleepperiod = 1.0
 	self.object = object
 	self.host = host
 	self.query = query
@@ -52,12 +55,19 @@ class myThread (threading.Thread):
 	self.object.connect(self.host)
 	
     def run(self):
-	global running
-	while running:
+#	global running
+#       while running:
+	while not self._stopevent.isSet():
 	    self.object.run_query(self.query, self.rate, self.keyspace)
-	    time.sleep(1/self.rate)
+#	    time.sleep(1/self.rate)
+	    self._stopevent.wait(self.sleepperiod)
 	log.info('%s ends', self.name)
 	exit(0)
+
+    def join(self, timeout=None):
+ 	""" Stop the thread and wait for it to end. """
+	self._stopevent.set()
+	threading.Thread.join(self, timeout)
 
 class Pool(object):
     """
@@ -98,6 +108,8 @@ class Pool(object):
 	signal.pause()
 	log.info('received keyboardInterrupt')
 	log.info('waiting for threads to exit')
+	for i in range(needed):
+	    conn_threads[i].join()
 	time.sleep(2*1/opts.rate)
 	client.close
 
