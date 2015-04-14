@@ -55,8 +55,8 @@ class myThread (threading.Thread):
 	while not self._stopevent.isSet():
 	    self.object.run_query(self.query, self.rate, self.keyspace)
 	    self._stopevent.wait(self.sleepperiod)
-	log.info('%s ends', self.name)
-	exit(0)
+#	log.info('%s ends', self.name)
+	return(0)
 
     def join(self, timeout=None):
  	""" Stop the thread and wait for it to end. """
@@ -94,6 +94,7 @@ class Pool(object):
 	    for i in range(needed):
 		conn_threads[i].setDaemon(True)
 	        conn_threads[i].start()
+		log.info('start %dth threads', i)
 
 	    log.info('done connecting')
 	    break
